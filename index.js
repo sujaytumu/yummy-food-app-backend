@@ -33,16 +33,16 @@ app.use('/uploads', express.static('uploads'));
 
 
 // ✅ Serve Vendor Frontend (Vite) at /vendor
-app.use('/vendor', express.static(path.join(__dirname, '../Vendor_Frontend/dist')));
-app.get('/vendor/*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../Vendor_Frontend/dist/index.html'));
-});
+// app.use('/vendor', express.static(path.join(__dirname, '../Vendor_Frontend/dist')));
+// app.get('/vendor/*', (req, res) => {
+//   res.sendFile(path.join(__dirname, '../Vendor_Frontend/dist/index.html'));
+// });
 
-// ✅ Serve Customer Frontend (React) at /
-app.use(express.static(path.join(__dirname, '../Customer_Frontend/build')));
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../Customer_Frontend/build/index.html'));
-});
+// // ✅ Serve Customer Frontend (React) at /
+// app.use(express.static(path.join(__dirname, '../Customer_Frontend/build')));
+// app.get('*', (req, res) => {
+//   res.sendFile(path.join(__dirname, '../Customer_Frontend/build/index.html'));
+// });
 
 /* ❌ Removed duplicate or conflicting handlers:
    - Old app.use(express.static(...)) called twice for Customer
