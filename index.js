@@ -15,7 +15,16 @@ const PORT = process.env.PORT || 4000;
 
 dotEnv.config();
 
-//Middlewares
+// ✅ 1. Enable JSON body parsing
+app.use(express.json());
+
+// ✅ 2. Optional debug middleware to log every request body
+app.use((req, res, next) => {
+  console.log('Incoming Body:', req.body); // 🪵 Shows body in Render logs
+  next();
+});
+
+//3.Middlewares
 app.use(cors({
   origin: [
     'http://localhost:5173',
