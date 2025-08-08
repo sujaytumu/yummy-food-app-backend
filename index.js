@@ -11,7 +11,7 @@ const productRoutes = require('./routes/productRoutes');
 
 
 const app = express()
-const PORT = process.env.PORT || 4000;//
+const PORT = process.env.PORT || 4000;
 
 dotEnv.config();
 
@@ -37,23 +37,6 @@ app.use('/firm', firmRoutes)
 app.use('/product', productRoutes);
 app.use('/uploads', express.static('uploads'));
 
-
-// ✅ Serve Vendor Frontend (Vite) at /vendor
-// app.use('/vendor', express.static(path.join(__dirname, '../Vendor_Frontend/dist')));
-// app.get('/vendor/*', (req, res) => {
-//   res.sendFile(path.join(__dirname, '../Vendor_Frontend/dist/index.html'));
-// });
-
-// // ✅ Serve Customer Frontend (React) at /
-// app.use(express.static(path.join(__dirname, '../Customer_Frontend/build')));
-// app.get('*', (req, res) => {
-//   res.sendFile(path.join(__dirname, '../Customer_Frontend/build/index.html'));
-// });
-
-/* ❌ Removed duplicate or conflicting handlers:
-   - Old app.use(express.static(...)) called twice for Customer
-   - Old regex catch-all route interfered with vendor serving
-*/
 
 // ✅ Start server
 app.listen(PORT, () => {
