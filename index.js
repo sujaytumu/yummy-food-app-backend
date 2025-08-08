@@ -16,8 +16,14 @@ const PORT = process.env.PORT || 4000;//
 dotEnv.config();
 
 //Middlewares
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }));//
-app.use(bodyParser.json());
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://yummy-food-app-frontend.vercel.app'
+  ],
+  credentials: true
+}));
+
 
 //mongo DB connection
 mongoose
