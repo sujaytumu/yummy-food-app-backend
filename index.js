@@ -28,7 +28,9 @@ app.use((req, res, next) => {
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://yummy-food-app-frontend.vercel.app'
+    'https://yummy-food-app-frontend.vercel.app',
+    'https://yummy-food-app-frontend.vercel.app',         // vendor deployed
+    'https://yummy-food-app-customer-frontend.vercel.app' // customer deployed
   ],
   credentials: true
 }));
