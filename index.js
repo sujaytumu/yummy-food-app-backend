@@ -27,8 +27,8 @@ app.use((req, res, next) => {
 //3.Middlewares
 app.use(cors({
   origin: [
-    'http://localhost:5173',
-    'https://yummy-food-app-frontend.vercel.app',
+    'http://localhost:5173', // vendor localhost
+    'http://localhost:5174',// customer localhost
     'https://yummy-food-app-frontend.vercel.app',         // vendor deployed
     'https://yummy-food-app-customer-frontend.vercel.app' // customer deployed
   ],
