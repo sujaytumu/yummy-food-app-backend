@@ -9,6 +9,13 @@ const getRazorpay = () => new Razorpay({
     key_secret: process.env.RAZORPAY_KEY_SECRET
 });
 
+// NEW: Product.price is a String in the DB and may be saved like "₹80", "80/-", "1,200" or "Rs. 99.50".
+// Strip everything except digits and '.', then parse -> avoids NaN reaching Razorpay.
+const parsePrice = (raw) => {
+    const n = parseFloat(String(raw ?? '').replace(/[^0-9.]/g, ''));
+    return Number.isFinite(n) ? n : NaN;
+};
+
 // POST /payment/create-order
 // body: { firmId, items: [{ productId, qty }], customer: { name, phone, address } }
 const createOrder = async (req, res) => {
@@ -36,7 +43,7 @@ const createOrder = async (req, res) => {
             if (!product.firm.some(f => f.toString() === firmId)) {
                 return res.status(400).json({ error: `${product.productName} does not belong to this restaurant` });
             }
-            const price = Number(product.price);
+            const price = parsePrice(product.price); // UPDATED: was Number(product.price) -> NaN for "₹80"
             if (!(price > 0)) {
                 return res.status(400).json({ error: `Invalid price for ${product.productName}` });
             }
@@ -45,6 +52,10 @@ const createOrder = async (req, res) => {
         }
 
         const amount = Math.round(totalRupees * 100); // paise
+        // UPDATED: Razorpay needs an integer amount >= 100 paise (₹1)
+        if (!Number.isInteger(amount) || amount < 100) {
+            return res.status(400).json({ error: "Invalid order amount" });
+        }
 
         const dbOrder = await Order.create({ firm: firmId, items: orderItems, amount, customer });
 
