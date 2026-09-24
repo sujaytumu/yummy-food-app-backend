@@ -4,6 +4,7 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Vendor = require('../models/Vendor');
 const { buildReceiptPdf } = require('../utils/receiptPdf');
+const { sendReceiptEmail, EMAIL_RE } = require('../utils/mailer'); // NEW
 
 // NEW: lazy init so the server still boots if env vars are missing (dotenv loads after requires in index.js)
 const getRazorpay = () => new Razorpay({
@@ -96,6 +97,34 @@ const downloadReceipt = async (req, res) => {
     }
 };
 
+// POST /payment/send-receipt  body: { orderId, pid, email }  -> (re)send the receipt PDF by email
+const sendReceipt = async (req, res) => {
+    try {
+        const { orderId, pid, email } = req.body || {};
+        const to = String(email || '').trim();
+        if (!EMAIL_RE.test(to)) return res.status(400).json({ error: "Please enter a valid email address" });
+        const order = await findPaidOrder(orderId, pid);
+        if (!order) return res.status(404).json({ error: "Order not found" });
+        if ((order.emailCount || 0) >= 5) {
+            return res.status(429).json({ error: "Email limit reached for this order. Please download the PDF instead." });
+        }
+        const r = await sendReceiptEmail(order, to);
+        if (!r.ok) {
+            order.emailStatus = `failed: ${r.error}`;
+            await order.save();
+            return res.status(502).json({ error: r.error });
+        }
+        order.emailStatus = 'sent';
+        order.emailSentTo = to;
+        order.emailCount = (order.emailCount || 0) + 1;
+        await order.save();
+        res.status(200).json({ message: "Receipt emailed", emailTo: to });
+    } catch (error) {
+        console.error("❌ sendReceipt error:", error);
+        res.status(500).json({ error: "Could not send email" });
+    }
+};
+
 // GET /payment/vendor-orders  (vendor login required) -> paid orders of this vendor's firms
 const getVendorOrders = async (req, res) => {
     try {
@@ -123,6 +152,12 @@ const createOrder = async (req, res) => {
         }
         if (!customer?.name || !customer?.phone || !customer?.address) {
             return res.status(400).json({ error: "Customer name, phone and address are required" });
+        }
+
+        // NEW: email is optional here (older cached frontends don't send it) but must be valid if present
+        const email = String(customer.email || '').trim();
+        if (email && !EMAIL_RE.test(email)) {
+            return res.status(400).json({ error: "Please enter a valid email address" });
         }
 
         // Price is calculated on the server from DB values so the client can't tamper with it
@@ -157,7 +192,7 @@ const createOrder = async (req, res) => {
             return res.status(400).json({ error: "Order total is too high (max ₹5,00,000). Please reduce items or check the product prices." });
         }
 
-        const dbOrder = await Order.create({ firm: firmId, items: orderItems, amount, customer });
+        const dbOrder = await Order.create({ firm: firmId, items: orderItems, amount, customer: { ...customer, email } });
 
         const rzpOrder = await getRazorpay().orders.create({
             amount,
@@ -230,11 +265,29 @@ const verifyPayment = async (req, res) => {
         }
         await order.save();
 
-        res.status(200).json({ message: "Payment verified", orderId: order._id, paymentId: razorpay_payment_id });
+        // NEW: email the receipt PDF. Best effort - the payment is already verified, so this must never fail the request.
+        let emailSent = false, emailError = '';
+        const to = order.customer?.email;
+        if (to) {
+            try {
+                await order.populate('firm', 'firmName area');
+                const r = await sendReceiptEmail(order, to);
+                emailSent = r.ok;
+                emailError = r.ok ? '' : r.error;
+                order.emailStatus = r.ok ? 'sent' : `failed: ${r.error}`;
+                if (r.ok) { order.emailSentTo = to; order.emailCount = (order.emailCount || 0) + 1; }
+                await order.save();
+            } catch (e) {
+                console.error("⚠️ receipt email step failed:", e.message);
+                emailError = 'Could not send email';
+            }
+        }
+
+        res.status(200).json({ message: "Payment verified", orderId: order._id, paymentId: razorpay_payment_id, emailSent, emailTo: to || '', emailError });
     } catch (error) {
         console.error("❌ verifyPayment error:", error);
         res.status(500).json({ error: "Verification error" });
     }
 };
 
-module.exports = { createOrder, verifyPayment, getOrderSummary, downloadReceipt, getVendorOrders };
+module.exports = { createOrder, verifyPayment, getOrderSummary, downloadReceipt, getVendorOrders, sendReceipt };
