@@ -19,11 +19,7 @@ dotEnv.config();
 // ✅ 1. Enable JSON body parsing
 app.use(express.json());
 
-// ✅ 2. Optional debug middleware to log every request body
-app.use((req, res, next) => {
-  console.log('Incoming Body:', req.body); // 🪵 Shows body in Render logs
-  next();
-});
+// UPDATED: removed the debug middleware that logged every request body (it exposed passwords, tokens and customer addresses in Render logs)
 
 //3.Middlewares
 app.use(cors({
