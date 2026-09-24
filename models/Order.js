@@ -14,7 +14,10 @@ const orderSchema = new mongoose.Schema({
     customer: { name: String, phone: String, address: String },
     status: { type: String, enum: ['created', 'paid', 'failed'], default: 'created' },
     razorpayOrderId: String,
-    razorpayPaymentId: String
+    razorpayPaymentId: String,
+    paymentMethod: String,   // NEW: upi / card / netbanking / wallet ...
+    paymentDetail: String,   // NEW: human readable e.g. "VISA card ending 1111", "UPI: name@bank"
+    paidAt: Date             // NEW
 }, { timestamps: true });
 
 module.exports = mongoose.model('Order', orderSchema);
