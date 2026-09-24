@@ -1,25 +1,13 @@
 const Firm = require('../models/Firm');
 const Vendor = require('../models/Vendor');
-const multer = require('multer');
-const path = require('path');
-
-// Multer setup for image upload
-const storage = multer.diskStorage({
-    destination: function(req, file, cb) {
-        cb(null, 'uploads/'); // Folder to store images
-    },
-    filename: function(req, file, cb) {
-        cb(null, Date.now() + path.extname(file.originalname)); // Unique filename
-    }
-});
-
-const upload = multer({ storage: storage });
+// UPDATED: multer/disk storage removed. Frontend now uploads the image to Cloudinary
+// and sends the secure_url in the JSON body (Render's disk is ephemeral, so local files vanish).
 
 // ADD FIRM CONTROLLER
 const addFirm = async (req, res) => {
     try {
-        const { firmName, area, category, region, offer } = req.body;
-        const image = req.file ? req.file.filename : undefined;
+        // UPDATED: image is the Cloudinary URL sent by the frontend (was req.file.filename -> always undefined for JSON body)
+        const { firmName, area, category, region, offer, image } = req.body;
 
         const vendor = await Vendor.findById(req.vendorId);
         if (!vendor) {
@@ -76,6 +64,6 @@ const deleteFirmById = async (req, res) => {
 };
 
 module.exports = {
-    addFirm: [upload.single('image'), addFirm],
+    addFirm,
     deleteFirmById
 };
