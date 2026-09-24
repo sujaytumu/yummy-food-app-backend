@@ -56,6 +56,10 @@ const createOrder = async (req, res) => {
         if (!Number.isInteger(amount) || amount < 100) {
             return res.status(400).json({ error: "Invalid order amount" });
         }
+        // NEW: Razorpay's default per-order limit is ₹5,00,000 -> friendly message instead of a 500
+        if (amount > 50000000) {
+            return res.status(400).json({ error: "Order total is too high (max ₹5,00,000). Please reduce items or check the product prices." });
+        }
 
         const dbOrder = await Order.create({ firm: firmId, items: orderItems, amount, customer });
 
@@ -77,6 +81,11 @@ const createOrder = async (req, res) => {
         });
     } catch (error) {
         console.error("❌ createOrder error:", error);
+        // NEW: pass Razorpay's own reason (e.g. "Amount exceeds maximum amount allowed.") to the client
+        const rzpMsg = error?.error?.description;
+        if (rzpMsg) {
+            return res.status(400).json({ error: rzpMsg });
+        }
         res.status(500).json({ error: "Could not create payment order" });
     }
 };
