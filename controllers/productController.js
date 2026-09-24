@@ -7,6 +7,11 @@ const addProduct = async(req, res) => {
         // UPDATED: image comes from body (Cloudinary secure_url), not req.file
         const { productName, price, category, bestSeller, description, image } = req.body;
 
+        // NEW: clear 400 for missing required fields instead of a generic 500
+        if (!productName || !String(productName).trim() || price === undefined || !String(price).trim()) {
+            return res.status(400).json({ error: "Product name and price are required" });
+        }
+
         const firmId = req.params.firmId;
         const firm = await Firm.findById(firmId);
 
@@ -34,6 +39,10 @@ const addProduct = async(req, res) => {
 
     } catch (error) {
         console.error(error);
+        // NEW: schema validation problems are the user's input, not a server crash
+        if (error.name === 'ValidationError' || error.name === 'CastError') {
+            return res.status(400).json({ error: error.message });
+        }
         res.status(500).json({ error: "Internal server error" })
     }
 }
