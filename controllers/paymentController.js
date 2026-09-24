@@ -2,6 +2,8 @@ const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
+const Vendor = require('../models/Vendor');
+const { buildReceiptPdf } = require('../utils/receiptPdf');
 
 // NEW: lazy init so the server still boots if env vars are missing (dotenv loads after requires in index.js)
 const getRazorpay = () => new Razorpay({
@@ -14,6 +16,81 @@ const getRazorpay = () => new Razorpay({
 const parsePrice = (raw) => {
     const n = parseFloat(String(raw ?? '').replace(/[^0-9.]/g, ''));
     return Number.isFinite(n) ? n : NaN;
+};
+
+// NEW: turn Razorpay's payment object into a short readable string
+const describePayment = (pay) => {
+    switch (pay.method) {
+        case 'upi': return `UPI${pay.vpa ? ': ' + pay.vpa : ''}`;
+        case 'card': {
+            const c = pay.card || {};
+            return `${c.network || ''} ${c.type || ''} card${c.last4 ? ' ending ' + c.last4 : ''}`.replace(/\s+/g, ' ').trim();
+        }
+        case 'netbanking': return `Netbanking${pay.bank ? ': ' + pay.bank : ''}`;
+        case 'wallet': return `Wallet${pay.wallet ? ': ' + pay.wallet : ''}`;
+        default: return pay.method || 'Online';
+    }
+};
+
+// NEW: a receipt/summary is only released for a PAID order and only with its payment id (not guessable from the order id alone)
+const findPaidOrder = async (orderId, pid) => {
+    if (!/^[a-f0-9]{24}$/i.test(String(orderId || '')) || !pid) return null;
+    const order = await Order.findById(orderId).populate('firm', 'firmName area');
+    if (!order || order.status !== 'paid' || order.razorpayPaymentId !== pid) return null;
+    return order;
+};
+
+// GET /payment/order/:orderId?pid=pay_xxx  -> JSON summary shown after payment
+const getOrderSummary = async (req, res) => {
+    try {
+        const order = await findPaidOrder(req.params.orderId, req.query.pid);
+        if (!order) return res.status(404).json({ error: "Order not found" });
+        res.status(200).json({
+            orderId: order._id,
+            restaurant: order.firm?.firmName,
+            items: order.items,
+            amount: order.amount / 100,
+            paymentId: order.razorpayPaymentId,
+            paymentMethod: order.paymentMethod,
+            paymentDetail: order.paymentDetail,
+            paidAt: order.paidAt
+        });
+    } catch (error) {
+        console.error("❌ getOrderSummary error:", error);
+        res.status(500).json({ error: "Could not load order" });
+    }
+};
+
+// GET /payment/receipt/:orderId?pid=pay_xxx  -> PDF download
+const downloadReceipt = async (req, res) => {
+    try {
+        const order = await findPaidOrder(req.params.orderId, req.query.pid);
+        if (!order) return res.status(404).json({ error: "Receipt not found" });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="Yummy-Receipt-${order._id.toString().slice(-8).toUpperCase()}.pdf"`);
+        const doc = buildReceiptPdf(order);
+        doc.pipe(res);
+        doc.end();
+    } catch (error) {
+        console.error("❌ downloadReceipt error:", error);
+        if (!res.headersSent) res.status(500).json({ error: "Could not generate receipt" });
+    }
+};
+
+// GET /payment/vendor-orders  (vendor login required) -> paid orders of this vendor's firms
+const getVendorOrders = async (req, res) => {
+    try {
+        const vendor = await Vendor.findById(req.vendorId);
+        if (!vendor) return res.status(404).json({ error: "Vendor not found" });
+        const orders = await Order.find({ firm: { $in: vendor.firm }, status: 'paid' })
+            .populate('firm', 'firmName')
+            .sort({ paidAt: -1, createdAt: -1 })
+            .limit(200);
+        res.status(200).json({ orders });
+    } catch (error) {
+        console.error("❌ getVendorOrders error:", error);
+        res.status(500).json({ error: "Could not load orders" });
+    }
 };
 
 // POST /payment/create-order
@@ -121,13 +198,24 @@ const verifyPayment = async (req, res) => {
 
         order.status = 'paid';
         order.razorpayPaymentId = razorpay_payment_id;
+        order.paidAt = new Date();
+
+        // NEW: fetch how the customer paid (UPI / card / netbanking) for the receipt.
+        // Best effort - a failure here must never fail a payment that is already verified.
+        try {
+            const pay = await getRazorpay().payments.fetch(razorpay_payment_id);
+            order.paymentMethod = pay.method;
+            order.paymentDetail = describePayment(pay);
+        } catch (e) {
+            console.error("⚠️ could not fetch payment details:", e?.error?.description || e.message);
+        }
         await order.save();
 
-        res.status(200).json({ message: "Payment verified", orderId: order._id });
+        res.status(200).json({ message: "Payment verified", orderId: order._id, paymentId: razorpay_payment_id });
     } catch (error) {
         console.error("❌ verifyPayment error:", error);
         res.status(500).json({ error: "Verification error" });
     }
 };
 
-module.exports = { createOrder, verifyPayment };
+module.exports = { createOrder, verifyPayment, getOrderSummary, downloadReceipt, getVendorOrders };
