@@ -34,9 +34,14 @@ const describePayment = (pay) => {
 
 // NEW: a receipt/summary is only released for a PAID order and only with its payment id (not guessable from the order id alone)
 const findPaidOrder = async (orderId, pid) => {
-    if (!/^[a-f0-9]{24}$/i.test(String(orderId || '')) || !pid) return null;
+    if (!/^[a-f0-9]{24}$/i.test(String(orderId || '')) || !pid) {
+        console.log(`[receipt] rejected: bad id or missing pid (id=${orderId})`);
+        return null;
+    }
     const order = await Order.findById(orderId).populate('firm', 'firmName area');
-    if (!order || order.status !== 'paid' || order.razorpayPaymentId !== pid) return null;
+    if (!order) { console.log(`[receipt] order ${orderId} not found`); return null; }
+    if (order.status !== 'paid') { console.log(`[receipt] order ${orderId} status=${order.status}`); return null; }
+    if (order.razorpayPaymentId !== pid) { console.log(`[receipt] order ${orderId} pid mismatch`); return null; }
     return order;
 };
 
@@ -66,10 +71,24 @@ const downloadReceipt = async (req, res) => {
     try {
         const order = await findPaidOrder(req.params.orderId, req.query.pid);
         if (!order) return res.status(404).json({ error: "Receipt not found" });
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="Yummy-Receipt-${order._id.toString().slice(-8).toUpperCase()}.pdf"`);
+        // UPDATED: build the whole PDF in memory and send it with a Content-Length (more reliable than streaming through proxies)
         const doc = buildReceiptPdf(order);
-        doc.pipe(res);
+        const chunks = [];
+        doc.on('data', (c) => chunks.push(c));
+        doc.on('end', () => {
+            const pdf = Buffer.concat(chunks);
+            const disposition = req.query.inline === '1' ? 'inline' : 'attachment';
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Length', pdf.length);
+            res.setHeader('Content-Disposition', `${disposition}; filename="Yummy-Receipt-${order._id.toString().slice(-8).toUpperCase()}.pdf"`);
+            res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+            res.end(pdf);
+            console.log(`[receipt] sent ${pdf.length} bytes for order ${order._id}`);
+        });
+        doc.on('error', (e) => {
+            console.error("❌ receipt pdf stream error:", e);
+            if (!res.headersSent) res.status(500).json({ error: "Could not generate receipt" });
+        });
         doc.end();
     } catch (error) {
         console.error("❌ downloadReceipt error:", error);
