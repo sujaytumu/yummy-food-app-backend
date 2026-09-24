@@ -9,6 +9,7 @@ router.post('/create-order', paymentController.createOrder);
 router.post('/verify', paymentController.verifyPayment);
 router.get('/order/:orderId', paymentController.getOrderSummary);       // NEW
 router.get('/receipt/:orderId', paymentController.downloadReceipt);      // NEW (PDF)
+router.post('/send-receipt', paymentController.sendReceipt);               // NEW (email PDF)
 router.get('/vendor-orders', verifyToken, paymentController.getVendorOrders); // NEW (vendor dashboard)
 
 module.exports = router;
