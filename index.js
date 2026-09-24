@@ -8,6 +8,7 @@ const path = require('path');
 const vendorRoutes = require('./routes/vendorRoutes');
 const firmRoutes = require('./routes/firmRoutes');
 const productRoutes = require('./routes/productRoutes');
+const paymentRoutes = require('./routes/paymentRoutes'); // NEW: Razorpay
 
 
 const app = express()
@@ -46,6 +47,7 @@ mongoose
 app.use('/vendor', vendorRoutes);
 app.use('/firm', firmRoutes)
 app.use('/product', productRoutes);
+app.use('/payment', paymentRoutes); // NEW: Razorpay
 app.use('/uploads', express.static('uploads'));
 
 
