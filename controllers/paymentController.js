@@ -5,6 +5,7 @@ const Order = require('../models/Order');
 const Vendor = require('../models/Vendor');
 const { buildReceiptPdf } = require('../utils/receiptPdf');
 const { sendReceiptEmail, EMAIL_RE } = require('../utils/mailer'); // NEW
+const { STATUS_ORDER, STATUS_LABEL, canAdvance } = require('../utils/orderStatus'); // NEW
 
 // NEW: lazy init so the server still boots if env vars are missing (dotenv loads after requires in index.js)
 const getRazorpay = () => new Razorpay({
@@ -59,7 +60,10 @@ const getOrderSummary = async (req, res) => {
             paymentId: order.razorpayPaymentId,
             paymentMethod: order.paymentMethod,
             paymentDetail: order.paymentDetail,
-            paidAt: order.paidAt
+            paidAt: order.paidAt,
+            deliveryStatus: order.deliveryStatus,       // NEW
+            statusLabel: STATUS_LABEL[order.deliveryStatus], // NEW
+            statusHistory: order.statusHistory           // NEW
         });
     } catch (error) {
         console.error("❌ getOrderSummary error:", error);
@@ -138,6 +142,53 @@ const getVendorOrders = async (req, res) => {
     } catch (error) {
         console.error("❌ getVendorOrders error:", error);
         res.status(500).json({ error: "Could not load orders" });
+    }
+};
+
+// GET /payment/track/:orderId?pid=pay_xxx -> lightweight polling endpoint for the customer-facing tracker
+const trackOrder = async (req, res) => {
+    try {
+        const order = await findPaidOrder(req.params.orderId, req.query.pid);
+        if (!order) return res.status(404).json({ error: "Order not found" });
+        res.status(200).json({
+            deliveryStatus: order.deliveryStatus,
+            statusLabel: STATUS_LABEL[order.deliveryStatus],
+            steps: STATUS_ORDER.map((s) => ({ status: s, label: STATUS_LABEL[s] })),
+            statusHistory: order.statusHistory
+        });
+    } catch (error) {
+        console.error("❌ trackOrder error:", error);
+        res.status(500).json({ error: "Could not load status" });
+    }
+};
+
+// PATCH /payment/order-status/:orderId  (vendor auth)  body: { status }
+const updateOrderStatus = async (req, res) => {
+    try {
+        const { status } = req.body || {};
+        if (!STATUS_ORDER.includes(status)) {
+            return res.status(400).json({ error: "Invalid status" });
+        }
+        const vendor = await Vendor.findById(req.vendorId);
+        if (!vendor) return res.status(404).json({ error: "Vendor not found" });
+
+        const order = await Order.findById(req.params.orderId);
+        if (!order || order.status !== 'paid') return res.status(404).json({ error: "Order not found" });
+        if (!vendor.firm.some((f) => f.toString() === order.firm.toString())) {
+            return res.status(403).json({ error: "This order does not belong to your restaurant" });
+        }
+        if (!canAdvance(order.deliveryStatus, status)) {
+            return res.status(400).json({ error: `Cannot move status backward from "${order.deliveryStatus}" to "${status}"` });
+        }
+        if (status !== order.deliveryStatus) {
+            order.deliveryStatus = status;
+            order.statusHistory.push({ status });
+            await order.save();
+        }
+        res.status(200).json({ deliveryStatus: order.deliveryStatus });
+    } catch (error) {
+        console.error("❌ updateOrderStatus error:", error);
+        res.status(500).json({ error: "Could not update status" });
     }
 };
 
@@ -290,4 +341,4 @@ const verifyPayment = async (req, res) => {
     }
 };
 
-module.exports = { createOrder, verifyPayment, getOrderSummary, downloadReceipt, getVendorOrders, sendReceipt };
+module.exports = { createOrder, verifyPayment, getOrderSummary, downloadReceipt, getVendorOrders, sendReceipt, trackOrder, updateOrderStatus };

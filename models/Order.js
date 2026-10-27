@@ -13,6 +13,13 @@ const orderSchema = new mongoose.Schema({
     currency: { type: String, default: 'INR' },
     customer: { name: String, phone: String, address: String, email: String }, // UPDATED: email added
     status: { type: String, enum: ['created', 'paid', 'failed'], default: 'created' },
+    // NEW: delivery lifecycle, separate from payment `status` above. Only moves forward.
+    deliveryStatus: {
+        type: String,
+        enum: ['placed', 'preparing', 'out_for_delivery', 'delivered'],
+        default: 'placed'
+    },
+    statusHistory: [{ status: String, at: { type: Date, default: Date.now } }], // NEW
     razorpayOrderId: String,
     razorpayPaymentId: String,
     paymentMethod: String,   // NEW: upi / card / netbanking / wallet ...
