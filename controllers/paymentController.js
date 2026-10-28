@@ -222,6 +222,9 @@ const createOrder = async (req, res) => {
             if (!product || !(qty > 0)) {
                 return res.status(400).json({ error: "Invalid item in cart" });
             }
+            if (product.inStock === false) {
+                return res.status(400).json({ error: `${product.productName} is currently out of stock. Please remove it from your cart.` });
+            }
             if (!product.firm.some(f => f.toString() === firmId)) {
                 return res.status(400).json({ error: `${product.productName} does not belong to this restaurant` });
             }
