@@ -14,6 +14,7 @@ const reviewRoutes = require('./routes/reviewRoutes'); // NEW: product reviews
 
 const app = express()
 const PORT = process.env.PORT || 4000;
+app.set('trust proxy', 1); // Render/Vercel-style single proxy hop: real client IP for rate limiting
 
 dotEnv.config();
 

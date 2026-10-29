@@ -6,6 +6,7 @@ const Vendor = require('../models/Vendor');
 const { buildReceiptPdf } = require('../utils/receiptPdf');
 const { sendReceiptEmail, EMAIL_RE } = require('../utils/mailer'); // NEW
 const { STATUS_ORDER, STATUS_LABEL, canAdvance } = require('../utils/orderStatus'); // NEW
+const { buildAnalytics, periodStart } = require('../utils/analytics');
 
 // NEW: lazy init so the server still boots if env vars are missing (dotenv loads after requires in index.js)
 const getRazorpay = () => new Razorpay({
@@ -142,6 +143,25 @@ const getVendorOrders = async (req, res) => {
     } catch (error) {
         console.error("❌ getVendorOrders error:", error);
         res.status(500).json({ error: "Could not load orders" });
+    }
+};
+
+// GET /payment/vendor-analytics?days=7|30|90  (vendor login required)
+// Revenue per day, totals and best-selling items over paid orders of this vendor's restaurants.
+const getVendorAnalytics = async (req, res) => {
+    try {
+        const days = [7, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 7;
+        const vendor = await Vendor.findById(req.vendorId);
+        if (!vendor) return res.status(404).json({ error: "Vendor not found" });
+        const orders = await Order.find({
+            firm: { $in: vendor.firm },
+            status: 'paid',
+            paidAt: { $gte: periodStart(days) }
+        }).select('paidAt createdAt amount items deliveryStatus').limit(10000).lean();
+        res.status(200).json(buildAnalytics(orders, days));
+    } catch (error) {
+        console.error("❌ getVendorAnalytics error:", error);
+        res.status(500).json({ error: "Could not load analytics" });
     }
 };
 
@@ -344,4 +364,4 @@ const verifyPayment = async (req, res) => {
     }
 };
 
-module.exports = { createOrder, verifyPayment, getOrderSummary, downloadReceipt, getVendorOrders, sendReceipt, trackOrder, updateOrderStatus };
+module.exports = { createOrder, verifyPayment, getOrderSummary, downloadReceipt, getVendorOrders, getVendorAnalytics, sendReceipt, trackOrder, updateOrderStatus };
