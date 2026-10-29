@@ -24,6 +24,11 @@ const productSchema = new mongoose.Schema({
     description: {
         type: String
     },
+    // Vendor can hide a dish from ordering without deleting it. Missing (old docs) = in stock.
+    inStock: {
+        type: Boolean,
+        default: true
+    },
     firm: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Firm'
