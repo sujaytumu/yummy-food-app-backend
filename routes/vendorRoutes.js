@@ -1,12 +1,13 @@
 const vendorController = require('../controllers/vendorController');
 const express = require('express');
-const { loginLimiterByIp, loginLimiterByEmail, registerLimiter, refreshLimiter } = require('../middlewares/rateLimit');
+const { loginLimiter, registerLimiter } = require('../middlewares/rateLimiter'); // per-IP limits
+const { loginLimiterByEmail, refreshLimiter } = require('../middlewares/rateLimit'); // per-account + refresh
 
 const router = express.Router();
 
 // POST Routes
 router.post('/register', registerLimiter, vendorController.vendorRegister);
-router.post('/login', loginLimiterByIp, loginLimiterByEmail, vendorController.vendorLogin);
+router.post('/login', loginLimiter, loginLimiterByEmail, vendorController.vendorLogin);
 router.post('/refresh', refreshLimiter, vendorController.refreshSession);
 router.post('/logout', vendorController.vendorLogout);
 
