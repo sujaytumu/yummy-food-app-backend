@@ -30,7 +30,9 @@ app.use(cors({
     'http://localhost:5173', // vendor localhost
     'http://localhost:5174',// customer localhost
     'https://yummy-food-app-frontend.vercel.app',         // vendor deployed
-    'https://yummy-food-app-customer-frontend.vercel.app' // customer deployed
+    'https://yummy-food-app-customer-frontend.vercel.app', // customer deployed
+    'https://localhost',      // NEW: Android app (Capacitor WebView origin)
+    'capacitor://localhost'   // NEW: iOS app (Capacitor WebView origin)
   ],
   credentials: true
 }));
