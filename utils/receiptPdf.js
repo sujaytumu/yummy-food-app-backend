@@ -74,6 +74,12 @@ const buildReceiptPdf = (order) => {
 
     // ---- totals
     y += 6;
+    if (order.promo?.discount > 0) {
+        doc.font('Helvetica').fontSize(10).fillColor('#333');
+        doc.text(`Discount (${clean(order.promo.code)})`, colPrice - 60, y, { width: 130, align: 'right' });
+        doc.text(`- ${money(order.promo.discount / 100)}`, colAmt, y, { width: right - colAmt, align: 'right' });
+        y += 20;
+    }
     doc.font('Helvetica-Bold').fontSize(13).fillColor('#111');
     doc.text('Total paid', colPrice - 40, y, { width: 110, align: 'right' });
     doc.text(money(order.amount / 100), colAmt, y, { width: right - colAmt, align: 'right' });

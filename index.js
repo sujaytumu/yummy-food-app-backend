@@ -10,6 +10,7 @@ const firmRoutes = require('./routes/firmRoutes');
 const productRoutes = require('./routes/productRoutes');
 const paymentRoutes = require('./routes/paymentRoutes'); // NEW: Razorpay
 const reviewRoutes = require('./routes/reviewRoutes'); // NEW: product reviews
+const promoRoutes = require('./routes/promoRoutes'); // promo codes
 
 
 const app = express()
@@ -47,6 +48,7 @@ app.use('/firm', firmRoutes)
 app.use('/product', productRoutes);
 app.use('/payment', paymentRoutes); // NEW: Razorpay
 app.use('/review', reviewRoutes); // NEW
+app.use('/promo', promoRoutes);
 app.use('/uploads', express.static('uploads'));
 
 

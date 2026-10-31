@@ -7,6 +7,8 @@ const { buildReceiptPdf } = require('../utils/receiptPdf');
 const { sendReceiptEmail, EMAIL_RE } = require('../utils/mailer'); // NEW
 const { STATUS_ORDER, STATUS_LABEL, canAdvance } = require('../utils/orderStatus'); // NEW
 const { buildAnalytics, periodStart } = require('../utils/analytics');
+const Promo = require('../models/Promo');
+const { normalizeCode, computeDiscount } = require('../utils/promo');
 
 // NEW: lazy init so the server still boots if env vars are missing (dotenv loads after requires in index.js)
 const getRazorpay = () => new Razorpay({
@@ -62,6 +64,8 @@ const getOrderSummary = async (req, res) => {
             paymentMethod: order.paymentMethod,
             paymentDetail: order.paymentDetail,
             paidAt: order.paidAt,
+            discount: order.promo?.discount ? order.promo.discount / 100 : 0,
+            promoCode: order.promo?.code || '',
             deliveryStatus: order.deliveryStatus,       // NEW
             statusLabel: STATUS_LABEL[order.deliveryStatus], // NEW
             statusHistory: order.statusHistory           // NEW
@@ -256,7 +260,19 @@ const createOrder = async (req, res) => {
             orderItems.push({ product: product._id, productName: product.productName, price, qty });
         }
 
-        const amount = Math.round(totalRupees * 100); // paise
+        // Promo code (optional). The discount is always recomputed here from DB values, never trusted from the client.
+        let discountRupees = 0;
+        let promoCode = '';
+        const wantedCode = normalizeCode(req.body.promoCode);
+        if (wantedCode) {
+            const promo = await Promo.findOne({ firm: firmId, code: wantedCode });
+            const r = computeDiscount(promo, totalRupees);
+            if (!r.ok) return res.status(400).json({ error: r.error });
+            discountRupees = r.discount;
+            promoCode = wantedCode;
+        }
+
+        const amount = Math.round((totalRupees - discountRupees) * 100); // paise
         // UPDATED: Razorpay needs an integer amount >= 100 paise (₹1)
         if (!Number.isInteger(amount) || amount < 100) {
             return res.status(400).json({ error: "Invalid order amount" });
@@ -266,7 +282,10 @@ const createOrder = async (req, res) => {
             return res.status(400).json({ error: "Order total is too high (max ₹5,00,000). Please reduce items or check the product prices." });
         }
 
-        const dbOrder = await Order.create({ firm: firmId, items: orderItems, amount, customer: { ...customer, email } });
+        const dbOrder = await Order.create({
+            firm: firmId, items: orderItems, amount, customer: { ...customer, email },
+            ...(promoCode ? { promo: { code: promoCode, discount: Math.round(discountRupees * 100) } } : {})
+        });
 
         const rzpOrder = await getRazorpay().orders.create({
             amount,
@@ -324,6 +343,7 @@ const verifyPayment = async (req, res) => {
             return res.status(400).json({ error: "Payment verification failed" });
         }
 
+        const firstPaid = order.status !== 'paid';
         order.status = 'paid';
         order.razorpayPaymentId = razorpay_payment_id;
         order.paidAt = new Date();
@@ -338,6 +358,11 @@ const verifyPayment = async (req, res) => {
             console.error("⚠️ could not fetch payment details:", e?.error?.description || e.message);
         }
         await order.save();
+
+        // Count the promo use once, on the first successful verification only (best effort, never fails a paid order)
+        if (firstPaid && order.promo?.code) {
+            Promo.updateOne({ firm: order.firm, code: order.promo.code }, { $inc: { usedCount: 1 } }).catch((e) => console.error('promo count error:', e.message));
+        }
 
         // NEW: email the receipt PDF. Best effort - the payment is already verified, so this must never fail the request.
         let emailSent = false, emailError = '';

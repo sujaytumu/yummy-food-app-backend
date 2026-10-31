@@ -23,4 +23,13 @@ const refreshLimiter = rateLimit({
     message: { error: 'Too many session refresh requests. Please wait a few minutes.' }
 });
 
-module.exports = { loginLimiterByEmail, refreshLimiter };
+// Stops people guessing promo codes
+const validateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 40,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many promo code attempts. Please wait a few minutes.' }
+});
+
+module.exports = { loginLimiterByEmail, refreshLimiter, validateLimiter };

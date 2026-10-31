@@ -9,7 +9,8 @@ const orderSchema = new mongoose.Schema({
         price: Number,          // rupees, taken from DB (never from client)
         qty: Number
     }],
-    amount: { type: Number, required: true },   // in paise
+    amount: { type: Number, required: true },   // in paise (what the customer pays, after any discount)
+    promo: { code: String, discount: Number },  // discount in paise; present only when a promo code was applied
     currency: { type: String, default: 'INR' },
     customer: { name: String, phone: String, address: String, email: String }, // UPDATED: email added
     status: { type: String, enum: ['created', 'paid', 'failed'], default: 'created' },
