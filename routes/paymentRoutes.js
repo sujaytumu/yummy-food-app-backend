@@ -5,6 +5,7 @@ const verifyToken = require('../middlewares/verifyToken');
 const router = express.Router();
 
 // NEW: Razorpay routes
+router.get('/config', paymentController.getPaymentConfig);
 router.post('/create-order', paymentController.createOrder);
 router.post('/verify', paymentController.verifyPayment);
 router.get('/order/:orderId', paymentController.getOrderSummary);       // NEW

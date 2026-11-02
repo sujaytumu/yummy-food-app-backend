@@ -218,8 +218,20 @@ const updateOrderStatus = async (req, res) => {
 
 // POST /payment/create-order
 // body: { firmId, items: [{ productId, qty }], customer: { name, phone, address } }
+// Test-mode guard: this app only takes Razorpay TEST payments unless ALLOW_LIVE_PAYMENTS=true is set on purpose.
+const isTestKey = () => String(process.env.RAZORPAY_KEY_ID || '').startsWith('rzp_test_');
+const livePaymentsBlocked = () => !isTestKey() && process.env.ALLOW_LIVE_PAYMENTS !== 'true';
+
+// GET /payment/config -> lets the frontends show test-payment help (no secrets)
+const getPaymentConfig = (req, res) => {
+    res.status(200).json({ testMode: isTestKey(), blocked: livePaymentsBlocked() });
+};
+
 const createOrder = async (req, res) => {
     try {
+        if (livePaymentsBlocked()) {
+            return res.status(503).json({ error: "Payments are in test mode only. The server needs Razorpay TEST keys (rzp_test_...)." });
+        }
         const { firmId, items, customer } = req.body;
 
         if (!firmId || !Array.isArray(items) || items.length === 0) {
@@ -389,4 +401,4 @@ const verifyPayment = async (req, res) => {
     }
 };
 
-module.exports = { createOrder, verifyPayment, getOrderSummary, downloadReceipt, getVendorOrders, getVendorAnalytics, sendReceipt, trackOrder, updateOrderStatus };
+module.exports = { getPaymentConfig, isTestKey, livePaymentsBlocked, createOrder, verifyPayment, getOrderSummary, downloadReceipt, getVendorOrders, getVendorAnalytics, sendReceipt, trackOrder, updateOrderStatus };
