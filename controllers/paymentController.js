@@ -401,4 +401,23 @@ const verifyPayment = async (req, res) => {
     }
 };
 
-module.exports = { getPaymentConfig, isTestKey, livePaymentsBlocked, createOrder, verifyPayment, getOrderSummary, downloadReceipt, getVendorOrders, getVendorAnalytics, sendReceipt, trackOrder, updateOrderStatus };
+// POST /payment/report-failure  body: { razorpay_order_id, error: { code, description, reason, step, source } }
+// NEW: the app/site reports Razorpay's failure reason so it shows up in the server logs (the payment itself never reaches /verify when it fails).
+const reportFailure = async (req, res) => {
+    try {
+        const { razorpay_order_id, error } = req.body || {};
+        const clip = (v) => String(v ?? '').slice(0, 200);
+        const e = error && typeof error === 'object' ? error : {};
+        console.log(`[payment-failed] order=${clip(razorpay_order_id)} code=${clip(e.code)} reason=${clip(e.reason)} step=${clip(e.step)} source=${clip(e.source)} desc=${clip(e.description)}`);
+        if (typeof razorpay_order_id === 'string' && razorpay_order_id) {
+            // only an order that has not been paid can be marked failed
+            await Order.updateOne({ razorpayOrderId: razorpay_order_id, status: 'created' }, { $set: { status: 'failed' } });
+        }
+        res.status(200).json({ ok: true });
+    } catch (err) {
+        console.error("❌ reportFailure error:", err);
+        res.status(200).json({ ok: false });
+    }
+};
+
+module.exports = { reportFailure, getPaymentConfig, isTestKey, livePaymentsBlocked, createOrder, verifyPayment, getOrderSummary, downloadReceipt, getVendorOrders, getVendorAnalytics, sendReceipt, trackOrder, updateOrderStatus };

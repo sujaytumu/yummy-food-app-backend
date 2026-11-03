@@ -8,6 +8,7 @@ const router = express.Router();
 router.get('/config', paymentController.getPaymentConfig);
 router.post('/create-order', paymentController.createOrder);
 router.post('/verify', paymentController.verifyPayment);
+router.post('/report-failure', paymentController.reportFailure);              // NEW (diagnostics)
 router.get('/order/:orderId', paymentController.getOrderSummary);       // NEW
 router.get('/receipt/:orderId', paymentController.downloadReceipt);      // NEW (PDF)
 router.post('/send-receipt', paymentController.sendReceipt);               // NEW (email PDF)
