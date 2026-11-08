@@ -79,6 +79,18 @@ const setOpen = async (req, res) => {
     }
 };
 
+// GET /firm/:firmId/open  -> { isOpen }   (public; older restaurants without the field count as open)
+const getOpen = async (req, res) => {
+    try {
+        if (!/^[a-f0-9]{24}$/i.test(req.params.firmId)) return res.status(400).json({ message: "Invalid restaurant" });
+        const firm = await Firm.findById(req.params.firmId).select('isOpen');
+        if (!firm) return res.status(404).json({ message: "Firm not found" });
+        res.status(200).json({ isOpen: firm.isOpen !== false });
+    } catch (error) {
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+};
+
 // DELETE FIRM CONTROLLER (now requires the owner's login; it used to be open to anyone)
 const deleteFirmById = async (req, res) => {
     try {
@@ -103,5 +115,6 @@ const deleteFirmById = async (req, res) => {
 module.exports = {
     addFirm,
     setOpen,
+    getOpen,
     deleteFirmById
 };
