@@ -35,6 +35,9 @@ const productSchema = new mongoose.Schema({
     }]
 });
 
+// NEW: the customer menu loads products by restaurant on every visit
+productSchema.index({ firm: 1 });
+
 const Product = mongoose.model('Product', productSchema);
 
 module.exports = Product

@@ -3,6 +3,7 @@ const dotEnv = require('dotenv');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const compression = require('compression'); // NEW: gzip JSON responses (PDFs are skipped automatically)
 const path = require('path');
 
 const vendorRoutes = require('./routes/vendorRoutes');
@@ -37,6 +38,9 @@ app.use(cors({
   credentials: true
 }));
 
+
+// NEW: compress API responses (smaller payloads = faster on mobile data)
+app.use(compression());
 
 //mongo DB connection
 mongoose

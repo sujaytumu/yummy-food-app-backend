@@ -31,4 +31,8 @@ const orderSchema = new mongoose.Schema({
     emailCount: { type: Number, default: 0 } // NEW: how many receipt emails were sent (resend limit)
 }, { timestamps: true });
 
+// NEW: indexes for the lookups the app does on every payment / vendor-orders / receipt request
+orderSchema.index({ razorpayOrderId: 1 });                  // /payment/verify, /payment/report-failure
+orderSchema.index({ firm: 1, status: 1, paidAt: -1 });      // vendor Orders tab (newest paid orders per restaurant)
+
 module.exports = mongoose.model('Order', orderSchema);
