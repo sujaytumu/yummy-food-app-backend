@@ -7,7 +7,10 @@ const router = express.Router()
 
 router.post('/add-firm', verifyToken, firmController.addFirm);
 
-router.delete('/:firmId', firmController.deleteFirmById);
+router.get('/:firmId/open', firmController.getOpen);
+router.patch('/:firmId/prep', verifyToken, firmController.setPrepTime);
+router.patch('/:firmId/open', verifyToken, firmController.setOpen);
+router.delete('/:firmId', verifyToken, firmController.deleteFirmById);
 
 
 module.exports = router;

@@ -29,6 +29,16 @@ const firmSchema = new mongoose.Schema({
     image: {
         type: String
     },
+    prepMinutes: {               // usual kitchen time, used for delivery estimates
+        type: Number,
+        default: 30,
+        min: 5,
+        max: 120
+    },
+    isOpen: {                    // vendor can close the restaurant; customers can't order while closed
+        type: Boolean,
+        default: true
+    },
     vendor: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Vendor'

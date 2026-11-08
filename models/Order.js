@@ -10,6 +10,7 @@ const orderSchema = new mongoose.Schema({
         qty: Number
     }],
     amount: { type: Number, required: true },   // in paise (what the customer pays, after any discount)
+    note: { type: String, maxlength: 200 },     // customer's special instructions
     promo: { code: String, discount: Number },  // discount in paise; present only when a promo code was applied
     currency: { type: String, default: 'INR' },
     customer: { name: String, phone: String, address: String, email: String }, // UPDATED: email added

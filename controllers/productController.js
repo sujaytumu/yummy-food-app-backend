@@ -1,6 +1,27 @@
 const Product = require("../models/Product");
 const Firm = require('../models/Firm')
 const Vendor = require('../models/Vendor')
+const Order = require('../models/Order')
+const { topSellers } = require('../utils/popular')
+
+// Popular dishes per restaurant: last 30 days of paid orders, cached 5 minutes. Never throws (the menu must always load).
+const POPULAR_DAYS = 30;
+const POPULAR_TTL_MS = 5 * 60 * 1000;
+const popularCache = new Map();
+const popularFor = async (firmId) => {
+    try {
+        const hit = popularCache.get(String(firmId));
+        if (hit && Date.now() - hit.at < POPULAR_TTL_MS) return hit.ids;
+        const since = new Date(Date.now() - POPULAR_DAYS * 24 * 60 * 60 * 1000);
+        const orders = await Order.find({ firm: firmId, status: 'paid', paidAt: { $gte: since } }).select('items.product items.qty');
+        const ids = topSellers(orders);
+        popularCache.set(String(firmId), { at: Date.now(), ids });
+        return ids;
+    } catch (e) {
+        console.error('popularFor error:', e.message);
+        return [];
+    }
+};
 // UPDATED: multer/disk storage removed; image is a Cloudinary URL sent in the JSON body
 
 const addProduct = async(req, res) => {
@@ -60,7 +81,8 @@ const getProductByFirm = async(req, res) => {
         const restaurantName = firm.firmName;
         const products = await Product.find({ firm: firmId });
 
-        res.status(200).json({ restaurantName, products });
+        const popular = await popularFor(firmId);
+        res.status(200).json({ restaurantName, products, popular });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Internal server error" })
