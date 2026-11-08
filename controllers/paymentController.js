@@ -8,6 +8,7 @@ const { sendReceiptEmail, EMAIL_RE } = require('../utils/mailer'); // NEW
 const { STATUS_ORDER, STATUS_LABEL, canAdvance } = require('../utils/orderStatus'); // NEW
 const { buildAnalytics, periodStart } = require('../utils/analytics');
 const Promo = require('../models/Promo');
+const Firm = require('../models/Firm');
 const { normalizeCode, computeDiscount } = require('../utils/promo');
 
 // NEW: lazy init so the server still boots if env vars are missing (dotenv loads after requires in index.js)
@@ -64,6 +65,7 @@ const getOrderSummary = async (req, res) => {
             paymentMethod: order.paymentMethod,
             paymentDetail: order.paymentDetail,
             paidAt: order.paidAt,
+            note: order.note || '',
             discount: order.promo?.discount ? order.promo.discount / 100 : 0,
             promoCode: order.promo?.code || '',
             deliveryStatus: order.deliveryStatus,       // NEW
@@ -233,6 +235,7 @@ const createOrder = async (req, res) => {
             return res.status(503).json({ error: "Payments are in test mode only. The server needs Razorpay TEST keys (rzp_test_...)." });
         }
         const { firmId, items, customer } = req.body;
+        const note = String(req.body.note || '').trim().slice(0, 200);
 
         if (!firmId || !Array.isArray(items) || items.length === 0) {
             return res.status(400).json({ error: "firmId and items are required" });
@@ -245,6 +248,12 @@ const createOrder = async (req, res) => {
         const email = String(customer.email || '').trim();
         if (email && !EMAIL_RE.test(email)) {
             return res.status(400).json({ error: "Please enter a valid email address" });
+        }
+
+        // A closed restaurant can't take new orders
+        const firmDoc = await Firm.findById(firmId).select('isOpen firmName');
+        if (firmDoc && firmDoc.isOpen === false) {
+            return res.status(400).json({ error: `${firmDoc.firmName} is closed right now. Please try again later.` });
         }
 
         // Price is calculated on the server from DB values so the client can't tamper with it
@@ -296,6 +305,7 @@ const createOrder = async (req, res) => {
 
         const dbOrder = await Order.create({
             firm: firmId, items: orderItems, amount, customer: { ...customer, email },
+            ...(note ? { note } : {}),
             ...(promoCode ? { promo: { code: promoCode, discount: Math.round(discountRupees * 100) } } : {})
         });
 

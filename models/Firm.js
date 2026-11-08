@@ -29,6 +29,10 @@ const firmSchema = new mongoose.Schema({
     image: {
         type: String
     },
+    isOpen: {                    // vendor can close the restaurant; customers can't order while closed
+        type: Boolean,
+        default: true
+    },
     vendor: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Vendor'
