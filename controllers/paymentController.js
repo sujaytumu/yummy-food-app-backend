@@ -10,6 +10,7 @@ const { buildAnalytics, periodStart } = require('../utils/analytics');
 const Promo = require('../models/Promo');
 const Firm = require('../models/Firm');
 const { normalizeCode, computeDiscount } = require('../utils/promo');
+const { computeEta } = require('../utils/eta');
 
 // NEW: lazy init so the server still boots if env vars are missing (dotenv loads after requires in index.js)
 const getRazorpay = () => new Razorpay({
@@ -44,7 +45,7 @@ const findPaidOrder = async (orderId, pid) => {
         console.log(`[receipt] rejected: bad id or missing pid (id=${orderId})`);
         return null;
     }
-    const order = await Order.findById(orderId).populate('firm', 'firmName area');
+    const order = await Order.findById(orderId).populate('firm', 'firmName area prepMinutes');
     if (!order) { console.log(`[receipt] order ${orderId} not found`); return null; }
     if (order.status !== 'paid') { console.log(`[receipt] order ${orderId} status=${order.status}`); return null; }
     if (order.razorpayPaymentId !== pid) { console.log(`[receipt] order ${orderId} pid mismatch`); return null; }
@@ -70,13 +71,19 @@ const getOrderSummary = async (req, res) => {
             promoCode: order.promo?.code || '',
             deliveryStatus: order.deliveryStatus,       // NEW
             statusLabel: STATUS_LABEL[order.deliveryStatus], // NEW
-            statusHistory: order.statusHistory           // NEW
+            statusHistory: order.statusHistory,          // NEW
+            ...etaFor(order)
         });
     } catch (error) {
         console.error("❌ getOrderSummary error:", error);
         res.status(500).json({ error: "Could not load order" });
     }
 };
+
+// { etaAt, late } for an order (etaAt is null once delivered)
+const etaFor = (order) => computeEta({
+    paidAt: order.paidAt, prepMinutes: order.firm?.prepMinutes, status: order.deliveryStatus, statusHistory: order.statusHistory
+});
 
 // GET /payment/receipt/:orderId?pid=pay_xxx  -> PDF download
 const downloadReceipt = async (req, res) => {
@@ -180,7 +187,8 @@ const trackOrder = async (req, res) => {
             deliveryStatus: order.deliveryStatus,
             statusLabel: STATUS_LABEL[order.deliveryStatus],
             steps: STATUS_ORDER.map((s) => ({ status: s, label: STATUS_LABEL[s] })),
-            statusHistory: order.statusHistory
+            statusHistory: order.statusHistory,
+            ...etaFor(order)
         });
     } catch (error) {
         console.error("❌ trackOrder error:", error);
